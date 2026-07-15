@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -372,19 +372,10 @@
     @media print {
       body { background: none !important; padding: 0 !important; }
       .page-title, .print-all-btn, .print-card-btn { display: none !important; }
-      .lanyard-wrap { filter: none !important; margin-bottom: 40px; page-break-inside: avoid; }
+      .lanyard-wrap { filter: none !important; page-break-inside: avoid; margin-bottom: 40px; }
       .badge-holder { border: none !important; background: none !important; padding: 0 !important; box-shadow: none !important; }
       .holder-slot { display: none !important; }
-      
-      /* Print mode behavior: print only one active card */
-      body.is-printing .lanyard-wrap {
-        display: none !important;
-      }
-      body.is-printing .lanyard-wrap.active-print {
-        display: flex !important;
-        margin: 0 auto !important;
-        transform: none !important;
-      }
+      .photo-ring::after { animation: none !important; border: 2px dashed rgba(0,136,255,0.35) !important; }
     }
   </style>
 </head>
@@ -598,18 +589,68 @@
 
   <script>
     function printSingleCard(btn) {
+      // Get the card element (the .card div inside the lanyard-wrap)
       const wrap = btn.closest('.lanyard-wrap');
-      document.body.classList.add('is-printing');
-      wrap.classList.add('active-print');
-      window.print();
-      
-      const cleanUp = () => {
-        document.body.classList.remove('is-printing');
-        wrap.classList.remove('active-print');
+      const cardEl = wrap.querySelector('.card');
+
+      // Clone the card so we can safely read its outerHTML
+      const cardClone = cardEl.cloneNode(true);
+
+      // Collect all <style> tags from the current page
+      const styles = Array.from(document.querySelectorAll('style'))
+        .map(s => s.outerHTML)
+        .join('\n');
+
+      // Collect all <link rel="stylesheet"> tags (e.g. Google Fonts)
+      const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+        .map(l => l.outerHTML)
+        .join('\n');
+
+      // Build a standalone HTML page with only this card
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Print ID Card</title>
+  ${links}
+  ${styles}
+  <style>
+    @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+    body {
+      margin: 0;
+      padding: 30px;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .photo-ring::after { animation: none !important; }
+    .card-tech-bg { display: block !important; }
+  </style>
+</head>
+<body>
+  ${cardClone.outerHTML}
+</body>
+</html>`;
+
+      // Open popup, write HTML, then print
+      const popup = window.open('', '_blank', 'width=500,height=700');
+      popup.document.open();
+      popup.document.write(html);
+      popup.document.close();
+
+      popup.onload = function () {
+        setTimeout(() => {
+          popup.focus();
+          popup.print();
+          popup.onafterprint = () => popup.close();
+          // Fallback close if onafterprint doesn't fire
+          setTimeout(() => { try { popup.close(); } catch(e) {} }, 3000);
+        }, 600);
       };
-      
-      window.onafterprint = cleanUp;
-      setTimeout(cleanUp, 1500); // fallback
     }
   </script>
 
